@@ -179,6 +179,7 @@ int dfuse_special_command(struct dfu_if *dif, unsigned int address,
 	int ret;
 	struct dfu_status dst;
 	int firstpoll = 1;
+	int stalls = 0;
 
 	if (command == ERASE_PAGE) {
 		struct memsegment *segment;
@@ -225,8 +226,13 @@ int dfuse_special_command(struct dfu_if *dif, unsigned int address,
 	do {
 		ret = dfu_get_status(dif, &dst);
 		if (ret < 0) {
-			errx(EX_IOERR, "Error during special command \"%s\" get_status",
-			     dfuse_command_name[command]);
+			if (command == ERASE_PAGE && ret == LIBUSB_ERROR_PIPE && ++stalls < 16) {
+				/* Fake busy state when the device isn't responding */
+				dst.bState = DFU_STATE_dfuDNBUSY;
+			} else {
+				errx(EX_IOERR, "Error during special command \"%s\" get_status",
+						dfuse_command_name[command]);
+			}
 		}
 		if (firstpoll) {
 			firstpoll = 0;
